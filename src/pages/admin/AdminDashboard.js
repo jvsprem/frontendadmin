@@ -20,7 +20,7 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout>
-      <h2>Dashboard</h2>
+      <h2>Dashboards</h2>
 
       <div style={styles.grid}>
         <div style={styles.card}>
