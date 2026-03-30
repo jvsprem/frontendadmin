@@ -185,7 +185,7 @@ const styles = {
     marginTop: "15px",
     display: "flex",
     gap: "10px",
-    alignItems: "center",
+    alignItems: "center" 
   },
 };
 
