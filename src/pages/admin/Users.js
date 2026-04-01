@@ -4,7 +4,7 @@ import AdminLayout from "./AdminLayout";
 
 const Users = () => {
   const [users, setUsers] = useState([]);
-  const [search, setSearch] = useState(""); // ✅ moved inside
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -19,7 +19,6 @@ const Users = () => {
     fetchUsers();
   }, []);
 
-  // ✅ Fetch users
   const fetchUsers = async () => {
     try {
       const res = await API.get("/admin/users");
@@ -29,12 +28,10 @@ const Users = () => {
     }
   };
 
-  // ✅ Handle input
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // ✅ Create / Update
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -64,7 +61,6 @@ const Users = () => {
     }
   };
 
-  // ✅ Edit
   const handleEdit = (user) => {
     setForm({
       name: user.name,
@@ -77,7 +73,6 @@ const Users = () => {
     setEditId(user._id);
   };
 
-  // ✅ Delete
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this user?")) return;
 
@@ -90,7 +85,23 @@ const Users = () => {
     }
   };
 
-  // ✅ FILTER LOGIC
+  // 🔥 RESET PASSWORD
+  const handleResetPassword = async (id) => {
+    const newPassword = prompt("Enter new password");
+
+    if (!newPassword) return;
+
+    try {
+      await API.put(`/admin/reset-password/${id}`, {
+        password: newPassword,
+      });
+
+      alert("Password reset successful");
+    } catch (err) {
+      alert(err.response?.data?.message || "Error");
+    }
+  };
+
   const filteredUsers = users.filter((u) =>
     u.name?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
@@ -117,6 +128,7 @@ const Users = () => {
         <input name="password" placeholder="Password" value={form.password} onChange={handleChange} />
 
         <select name="role" value={form.role} onChange={handleChange}>
+          <option value="admin">Admin</option>
           <option value="distributor">Distributor</option>
           <option value="deliveryBoy">Delivery Boy</option>
         </select>
@@ -131,36 +143,45 @@ const Users = () => {
 
       {/* 📊 TABLE */}
       <table style={styles.table}>
-  <thead>
-    <tr>
-      <th style={styles.th}>Name</th>
-      <th style={styles.th}>Email</th>
-      <th style={styles.th}>Role</th>
-      <th style={styles.th}>Phone</th>
-      <th style={styles.th}>Actions</th>
-    </tr>
-  </thead>
+        <thead>
+          <tr>
+            <th style={styles.th}>Name</th>
+            <th style={styles.th}>Email</th>
+            <th style={styles.th}>Role</th>
+            <th style={styles.th}>Phone</th>
+            <th style={styles.th}>Actions</th>
+          </tr>
+        </thead>
 
-  <tbody>
-    {filteredUsers.map((u) => (
-      <tr key={u._id}>
-        <td style={styles.td}>{u.name}</td>
-        <td style={styles.td}>{u.email}</td>
-        <td style={styles.td}>{u.role}</td>
-        <td style={styles.td}>{u.phone}</td>
+        <tbody>
+          {filteredUsers.map((u) => (
+            <tr key={u._id}>
+              <td style={styles.td}>{u.name}</td>
+              <td style={styles.td}>{u.email}</td>
+              <td style={styles.td}>{u.role}</td>
+              <td style={styles.td}>{u.phone}</td>
 
-        <td style={styles.td}>
-          <button onClick={() => handleEdit(u)} style={styles.editBtn}>
-            Edit
-          </button>
-          <button onClick={() => handleDelete(u._id)} style={styles.deleteBtn}>
-            Delete
-          </button>
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
+              <td style={styles.td}>
+                <button onClick={() => handleEdit(u)} style={styles.editBtn}>
+                  Edit
+                </button>
+
+                <button onClick={() => handleDelete(u._id)} style={styles.deleteBtn}>
+                  Delete
+                </button>
+
+                {/* 🔥 RESET PASSWORD BUTTON */}
+                <button
+                  onClick={() => handleResetPassword(u._id)}
+                  style={styles.resetBtn}
+                >
+                  Reset Password
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </AdminLayout>
   );
 };
@@ -180,27 +201,25 @@ const styles = {
     borderRadius: "5px",
     border: "1px solid #ccc",
   },
-table: {
-  width: "100%",
-  borderCollapse: "collapse",
-  marginTop: "10px",
-},
-th: {
-  border: "1px solid #ccc",
-  padding: "10px",
-  background: "#f1f1f1",
-  textAlign: "left",
-},
-td: {
-  border: "1px solid #ccc",
-  padding: "10px",
-},
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    marginTop: "10px",
+  },
+  th: {
+    border: "1px solid #ccc",
+    padding: "10px",
+    background: "#f1f1f1",
+  },
+  td: {
+    border: "1px solid #ccc",
+    padding: "10px",
+  },
   button: {
     padding: "10px",
     background: "#007bff",
     color: "#fff",
     border: "none",
-    cursor: "pointer",
   },
   editBtn: {
     marginRight: "5px",
@@ -210,7 +229,14 @@ td: {
     padding: "5px",
   },
   deleteBtn: {
+    marginRight: "5px",
     background: "red",
+    color: "#fff",
+    border: "none",
+    padding: "5px",
+  },
+  resetBtn: {
+    background: "purple",
     color: "#fff",
     border: "none",
     padding: "5px",
