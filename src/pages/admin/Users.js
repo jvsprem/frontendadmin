@@ -129,6 +129,8 @@ const Users = () => {
 
         <select name="role" value={form.role} onChange={handleChange}>
           <option value="admin">Admin</option>
+          <option value="support">Support</option>
+          <option value="vendor">Vendor</option>
           <option value="distributor">Distributor</option>
           <option value="deliveryBoy">Delivery Boy</option>
         </select>

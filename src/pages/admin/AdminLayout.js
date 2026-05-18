@@ -2,7 +2,7 @@ import { useState } from "react";
 import Sidebar from "../../components/Sidebar";
 import Navbar from "../../components/Navbar";
 
-const AdminLayout = ({ children }) => {
+const AdminLayout = ({ children, title }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   const toggleSidebar = () => {
@@ -12,7 +12,7 @@ const AdminLayout = ({ children }) => {
   return (
     <div>
       <Sidebar isOpen={isOpen} />
-      <Navbar toggleSidebar={toggleSidebar} />
+      <Navbar toggleSidebar={toggleSidebar} title={title} />
 
     <div
   style={{

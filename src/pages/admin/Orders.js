@@ -1,18 +1,52 @@
 import { useEffect, useState, useCallback } from "react";
 import API from "../../api/axios";
+import StatusBadge from "../../components/StatusBadge";
 import AdminLayout from "./AdminLayout";
+import styles from "./adminStyles";
+
+const orderTabs = [
+  { value: "", label: "All" },
+  { value: "current", label: "Current" },
+  { value: "pending", label: "Pending" },
+  { value: "accepted", label: "Accepted" },
+  { value: "assigned", label: "Assigned" },
+  { value: "delivered", label: "Delivered" },
+  { value: "canceled", label: "Cancelled" },
+];
+const cancellableStatuses = ["pending", "accepted", "assigned", "due"];
+const cancelReasons = [
+  { code: "OUT_OF_STOCK", label: "Out of Stock" },
+  { code: "AREA_SERVICEABLE_ISSUE", label: "Area Serviceable Issue" },
+  { code: "DISTRIBUTOR_UNAVAILABLE", label: "Distributor Unavailable" },
+  { code: "CUSTOMER_REQUEST", label: "Customer Request" },
+  { code: "OTHER", label: "Other" },
+];
+const initiators = [
+  { value: "vendor", label: "Vendor" },
+  { value: "distributor", label: "Distributor" },
+  { value: "customer", label: "Customer" },
+  { value: "support", label: "Support Team" },
+];
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [search, setSearch] = useState("");
+  const [cancelModal, setCancelModal] = useState({
+    open: false,
+    orderId: null,
+    initiator: "vendor",
+    reasonCode: "OUT_OF_STOCK",
+    adminNote: "",
+  });
 
   // ✅ Fetch orders (defined BEFORE useEffect)
   const fetchOrders = useCallback(async () => {
     try {
       const res = await API.get("/admin/orders", {
-        params: { status, page },
+        params: { status, page, search },
       });
 
       setOrders(res.data.orders);
@@ -20,7 +54,7 @@ const Orders = () => {
     } catch (err) {
       console.error(err);
     }
-  }, [status, page]);
+  }, [status, page, search]);
 
   // ✅ useEffect (no warning now)
   useEffect(() => {
@@ -28,65 +62,91 @@ const Orders = () => {
   }, [fetchOrders]);
 
   // ✅ Cancel order
-  const handleCancel = async (id) => {
-    const reason = prompt("Enter cancellation reason:");
-    if (!reason) return;
+  const openCancelModal = (order) => {
+    setCancelModal({
+      open: true,
+      orderId: order._id,
+      initiator: "vendor",
+      reasonCode: "OUT_OF_STOCK",
+      adminNote: "",
+    });
+  };
+
+  const closeCancelModal = () => {
+    setCancelModal({ open: false, orderId: null, initiator: "vendor", reasonCode: "OUT_OF_STOCK", adminNote: "" });
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelModal.initiator || !cancelModal.reasonCode) {
+      alert("Please select initiator and reason");
+      return;
+    }
 
     try {
-      await API.put(`/admin/orders/cancel/${id}`, { reason });
+      const selectedReason = cancelReasons.find((item) => item.code === cancelModal.reasonCode);
+      await API.patch(`/admin/orders/${cancelModal.orderId}/cancel`, {
+        status: "cancelled",
+        initiator: cancelModal.initiator,
+        reason_code: cancelModal.reasonCode,
+        admin_note: cancelModal.adminNote,
+        reason: `${selectedReason?.label || cancelModal.reasonCode}${cancelModal.adminNote ? ` - ${cancelModal.adminNote}` : ""}`,
+      });
       alert("Order canceled");
+      closeCancelModal();
       fetchOrders();
     } catch (err) {
       alert(err.response?.data?.message || "Error");
     }
   };
 
-  // 🎨 Status Badge
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case "delivered":
-        return { background: "#28a745", color: "#fff" }; // green
-      case "pending":
-        return { background: "#ffc107", color: "#000" }; // yellow
-      case "canceled":
-        return { background: "#dc3545", color: "#fff" }; // red
-      default:
-        return {};
-    }
-  };
-
   return (
     <AdminLayout>
-      <h2>Orders</h2>
+      <div style={styles.pageHeader}>
+        <div>
+          <h1 style={styles.title}>Orders</h1>
+          <p style={styles.subtitle}>Tabbed order queue with server-side pagination and admin cancellation reasons.</p>
+        </div>
+      </div>
 
-      {/* 🔍 FILTER */}
-      <select
-        value={status}
-        onChange={(e) => {
-          setPage(1); // reset page
-          setStatus(e.target.value);
-        }}
-        style={styles.filter}
-      >
-        <option value="">All</option>
-        <option value="pending">Pending</option>
-        <option value="delivered">Delivered</option>
-        <option value="canceled">Canceled</option>
-      </select>
+      <div style={styles.toolbar}>
+        {orderTabs.map((tab) => (
+          <button
+            key={tab.value || "all"}
+            style={tab.value === status ? styles.button : styles.secondaryButton}
+            onClick={() => {
+              setPage(1);
+              setStatus(tab.value);
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+        <input
+          style={styles.input}
+          value={search}
+          onChange={(e) => {
+            setPage(1);
+            setSearch(e.target.value);
+          }}
+          placeholder="Search order ID or distributor phone"
+        />
+      </div>
 
-      {/* 📊 TABLE */}
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>Vendor</th>
-            <th style={styles.th}>Distributor</th>
-            <th style={styles.th}>Delivery Boy</th>
-            <th style={styles.th}>Status</th>
-            <th style={styles.th}>Cancel Reason</th>
-            <th style={styles.th}>Date</th>
-            <th style={styles.th}>Action</th>
-          </tr>
-        </thead>
+      <div style={styles.tableWrap}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Vendor</th>
+              <th style={styles.th}>Order ID</th>
+              <th style={styles.th}>Distributor</th>
+              <th style={styles.th}>Delivery Boy</th>
+              <th style={styles.th}>Amount</th>
+              <th style={styles.th}>Status</th>
+              <th style={styles.th}>Cancel Reason</th>
+              <th style={styles.th}>Date</th>
+              <th style={styles.th}>Action</th>
+            </tr>
+          </thead>
 
         <tbody>
           {orders.map((o, i) => (
@@ -97,19 +157,19 @@ const Orders = () => {
               }}
             >
               <td style={styles.td}>{o.vendor?.name}</td>
+              <td style={styles.td}>
+                <button style={styles.linkButton} onClick={() => openCancelModal(o)}>
+                  {o._id}
+                </button>
+              </td>
               <td style={styles.td}>{o.distributor?.name}</td>
               <td style={styles.td}>{o.assignedDeliveryBoy?.name}</td>
-
-              {/* 🟢 STATUS BADGE */}
+              <td style={styles.td}>Rs. {o.totalAmount || 0}</td>
               <td style={styles.td}>
-                <span style={{ ...styles.badge, ...getStatusStyle(o.status) }}>
-                  {o.status}
-                </span>
+                <StatusBadge value={o.status} />
               </td>
-
-              {/* ❗ CANCEL REASON */}
               <td style={styles.td}>
-                {o.status === "canceled" ? o.cancellationReason : "-"}
+                {["canceled", "cancelled"].includes(o.status) ? o.cancellationReason : "-"}
               </td>
 
               <td style={styles.td}>
@@ -124,19 +184,22 @@ const Orders = () => {
   })}
 </td>
               <td style={styles.td}>
-                {o.status === "pending" && (
+                {cancellableStatuses.includes(String(o.status || "").toLowerCase()) ? (
                   <button
                     style={styles.cancelBtn}
-                    onClick={() => handleCancel(o._id)}
+                    onClick={() => openCancelModal(o)}
                   >
                     Cancel
                   </button>
+                ) : (
+                  "-"
                 )}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* 🔢 PAGINATION */}
       <div style={styles.pagination}>
@@ -152,48 +215,56 @@ const Orders = () => {
           Next
         </button>
       </div>
+
+      {cancelModal.open && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalBox}>
+            <h2 style={{ ...styles.title, fontSize: "20px" }}>Cancel Order</h2>
+            <p style={styles.subtitle}>Select a reason and add any operational details.</p>
+
+            <label style={styles.label}>Initiator</label>
+            <select
+              style={{ ...styles.select, width: "100%", marginBottom: "12px" }}
+              value={cancelModal.initiator}
+              onChange={(e) => setCancelModal({ ...cancelModal, initiator: e.target.value })}
+            >
+              {initiators.map((initiator) => (
+                <option key={initiator.value} value={initiator.value}>
+                  {initiator.label}
+                </option>
+              ))}
+            </select>
+
+            <label style={styles.label}>Reason</label>
+            <select
+              style={{ ...styles.select, width: "100%", marginBottom: "12px" }}
+              value={cancelModal.reasonCode}
+              onChange={(e) => setCancelModal({ ...cancelModal, reasonCode: e.target.value })}
+            >
+              {cancelReasons.map((reason) => (
+                <option key={reason.code} value={reason.code}>
+                  {reason.label}
+                </option>
+              ))}
+            </select>
+
+            <label style={styles.label}>Custom Note</label>
+            <textarea
+              style={styles.textarea}
+              value={cancelModal.adminNote}
+              onChange={(e) => setCancelModal({ ...cancelModal, adminNote: e.target.value })}
+              placeholder="Add specific details for this cancellation"
+            />
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px" }}>
+              <button style={styles.secondaryButton} onClick={closeCancelModal}>Close</button>
+              <button style={styles.cancelBtn} onClick={confirmCancel}>Confirm Cancellation</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
-};
-
-// 🎨 Styles
-const styles = {
-  filter: {
-    padding: "8px",
-    marginBottom: "15px",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-  th: {
-    border: "1px solid #ccc",
-    padding: "10px",
-    background: "#f1f1f1",
-  },
-  td: {
-    border: "1px solid #ccc",
-    padding: "10px",
-  },
-  badge: {
-    padding: "5px 10px",
-    borderRadius: "5px",
-    fontSize: "12px",
-    textTransform: "capitalize",
-  },
-  cancelBtn: {
-    background: "red",
-    color: "#fff",
-    border: "none",
-    padding: "5px 10px",
-    cursor: "pointer",
-  },
-  pagination: {
-    marginTop: "15px",
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-  },
 };
 
 export default Orders;
