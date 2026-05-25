@@ -146,12 +146,7 @@ const adminStyles = {
     gap: "10px",
     marginBottom: "16px",
   },
-  pagination: {
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-    marginTop: "14px",
-  },
+
   label: {
     display: "block",
     marginBottom: "6px",
@@ -187,6 +182,50 @@ const adminStyles = {
     padding: "20px",
     boxShadow: "0 20px 40px rgba(15, 23, 42, 0.2)",
   },
+  countText: {
+  marginBottom: "10px",
+  fontWeight: "600",
+  color: "#555",
+},
+
+pagination: {
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: "12px",
+  marginTop: "20px",
+},
+
+pageBtn: {
+  padding: "8px 14px",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer",
+  background: "#007bff",
+  color: "#fff",
+},
+
+pageText: {
+  fontWeight: "bold",
+},
+
+activateBtn: {
+  background: "green",
+  color: "#fff",
+  border: "none",
+  padding: "8px 12px",
+  borderRadius: "6px",
+  cursor: "pointer",
+},
+
+deactivateBtn: {
+  background: "red",
+  color: "#fff",
+  border: "none",
+  padding: "8px 12px",
+  borderRadius: "6px",
+  cursor: "pointer",
+},
 };
 
 export default adminStyles;

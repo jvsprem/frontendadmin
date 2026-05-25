@@ -1,12 +1,15 @@
 import { useState, useContext, useEffect } from "react";
 import API from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
-  FaTint,
-  FaEnvelope,
-  FaLock,
-  FaArrowRight,
+ FaTint,
+FaEnvelope,
+FaLock,
+FaArrowRight,
+FaEye,
+FaEyeSlash,
+FaExclamationCircle,
 } from "react-icons/fa";
 
 const Login = () => {
@@ -16,6 +19,9 @@ const Login = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+const [error, setError] = useState("");
+const [emailError, setEmailError] = useState("");
 
   const { login, user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -35,38 +41,76 @@ const Login = () => {
     }
   }, [user, navigate]);
 
+const validateEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+};
+
+
+
   // ✅ Login
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (!form.email || !form.password) {
-      alert("Please enter email & password");
-      return;
+  setError("");
+  setEmailError("");
+
+  
+
+  if (!form.email || !form.password) {
+    setError("Please enter email and password");
+    return;
+  }
+
+  // Email validation
+  if (!validateEmail(form.email)) {
+    setEmailError("Invalid email format");
+    return;
+  }
+
+
+  try {
+    setLoading(true);
+
+    const res = await API.post("/auth/login", form);
+
+    login(res.data);
+
+    const role = res.data.role || res.data.user?.role;
+
+
+
+    if (role === "admin") {
+      navigate("/admin", { replace: true });
+    } else if (role === "support") {
+      navigate("/admin/orders", { replace: true });
+    } else {
+      navigate("/user", { replace: true });
     }
 
-    try {
-      setLoading(true);
+  } catch (err) {
 
-      const res = await API.post("/auth/login", form);
+    const message =
+      err.response?.data?.message || "";
 
-      login(res.data);
-
-      const role = res.data.role || res.data.user?.role;
-
-      if (role === "admin") {
-        navigate("/admin", { replace: true });
-      } else if (role === "support") {
-        navigate("/admin/orders", { replace: true });
-      } else {
-        navigate("/user", { replace: true });
-      }
-
-    } catch (err) {
-      alert(err.response?.data?.message || "Login failed");
-    } finally {
-      setLoading(false);
+    // Backend messages handling
+    if (
+      message.toLowerCase().includes("password")
+    ) {
+      setError("Incorrect password");
+    } else if (
+      message.toLowerCase().includes("user") ||
+      message.toLowerCase().includes("email")
+    ) {
+      setError("Incorrect username or email");
+    } else {
+      setError("Invalid username or password");
     }
-  };
+
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>
@@ -158,6 +202,7 @@ const Login = () => {
             <p style={styles.subtitle}>
               Login to continue your business dashboard
             </p>
+            
 
             <form onSubmit={handleSubmit}>
 
@@ -182,22 +227,43 @@ const Login = () => {
 
               {/* Password */}
               <div className="input-box" style={styles.inputBox}>
-                <FaLock style={styles.icon} />
+  <FaLock style={styles.icon} />
 
-                <input
-                  type="password"
-                  placeholder="Enter Password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      password: e.target.value,
-                    })
-                  }
-                  style={styles.input}
-                  required
-                />
-              </div>
+  <input
+    type={showPassword ? "text" : "password"}
+    placeholder="Enter Password"
+    value={form.password}
+    onChange={(e) =>
+      setForm({
+        ...form,
+        password: e.target.value,
+      })
+    }
+    style={styles.input}
+    required
+  />
+
+  <div
+    onClick={() => setShowPassword(!showPassword)}
+    style={styles.eyeIcon}
+  >
+    {showPassword ? (
+      <FaEyeSlash />
+    ) : (
+      <FaEye />
+    )}
+  </div>
+</div>
+
+{/* Error Message */}
+{(error || emailError) && (
+  <div style={styles.errorBox}>
+    <FaExclamationCircle
+      style={{ marginRight: 8 }}
+    />
+    {error || emailError}
+  </div>
+)}
 
               {/* Button */}
               <button
@@ -214,12 +280,12 @@ const Login = () => {
               </button>
             </form>
 
-            <div style={styles.bottomText}>
+            {/* <div style={styles.bottomText}>
               New User?{" "}
               <Link to="/register" style={styles.link}>
                 Create Account
               </Link>
-            </div>
+            </div> */}
 
           </div>
         </div>
@@ -267,6 +333,24 @@ const styles = {
     color: "#fff",
     maxWidth: "450px",
   },
+
+  eyeIcon: {
+  cursor: "pointer",
+  color: "#666",
+  fontSize: "18px",
+},
+
+errorBox: {
+  background: "#ffe5e5",
+  color: "#d60000",
+  padding: "12px",
+  borderRadius: "10px",
+  marginBottom: "18px",
+  display: "flex",
+  alignItems: "center",
+  fontSize: "14px",
+  fontWeight: "500",
+},
 
   logoCircle: {
     width: "90px",
