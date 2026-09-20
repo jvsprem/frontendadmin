@@ -121,15 +121,30 @@ const Orders = () => {
             {tab.label}
           </button>
         ))}
-        <input
-          style={styles.input}
-          value={search}
-          onChange={(e) => {
-            setPage(1);
-            setSearch(e.target.value);
-          }}
-          placeholder="Search order ID or distributor phone"
-        />
+       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+  <input
+    style={styles.input}
+    value={search}
+    onChange={(e) => {
+      setPage(1);
+      setSearch(e.target.value);
+    }}
+    placeholder="Search Order ID, Vendor, Distributor, Phone..."
+  />
+
+  {search && (
+    <button
+      type="button"
+      style={styles.secondaryButton}
+      onClick={() => {
+        setSearch("");
+        setPage(1);
+      }}
+    >
+      Clear
+    </button>
+  )}
+</div>
       </div>
 
       <div style={styles.tableWrap}>
@@ -151,17 +166,20 @@ const Orders = () => {
         <tbody>
           {orders.map((o, i) => (
             <tr
-              key={o._id}
+              key={o.orderNumber || o._id}
               style={{
                 background: i % 2 === 0 ? "#fff" : "#f9f9f9",
               }}
             >
               <td style={styles.td}>{o.vendor?.name}</td>
               <td style={styles.td}>
-                <button style={styles.linkButton} onClick={() => openCancelModal(o)}>
-                  {o._id}
-                </button>
-              </td>
+  <button
+    style={styles.linkButton}
+    onClick={() => openCancelModal(o)}
+  >
+    {o.orderNumber || o._id}
+  </button>
+</td>
               <td style={styles.td}>{o.distributor?.name}</td>
               <td style={styles.td}>{o.assignedDeliveryBoy?.name}</td>
               <td style={styles.td}>Rs. {o.totalAmount || 0}</td>
@@ -202,19 +220,41 @@ const Orders = () => {
       </div>
 
       {/* 🔢 PAGINATION */}
-      <div style={styles.pagination}>
-        <button disabled={page === 1} onClick={() => setPage(page - 1)}>
-          Prev
-        </button>
+    <div style={styles.pagination}>
+  {/* Previous */}
+  <button
+    disabled={page === 1}
+    onClick={() => setPage(page - 1)}
+  >
+    Prev
+  </button>
 
-        <span>
-          Page {page} / {pages}
-        </span>
+  {/* Page Numbers */}
+  {Array.from(
+    { length: Math.min(10, pages) },
+    (_, index) => index + 1
+  ).map((pageNumber) => (
+    <button
+      key={pageNumber}
+      onClick={() => setPage(pageNumber)}
+      style={
+        page === pageNumber
+          ? styles.button
+          : styles.secondaryButton
+      }
+    >
+      {pageNumber}
+    </button>
+  ))}
 
-        <button disabled={page === pages} onClick={() => setPage(page + 1)}>
-          Next
-        </button>
-      </div>
+  {/* Next */}
+  <button
+    disabled={page === pages}
+    onClick={() => setPage(page + 1)}
+  >
+    Next
+  </button>
+</div>
 
       {cancelModal.open && (
         <div style={styles.modalOverlay}>

@@ -29,15 +29,10 @@ const formatNotificationTime = (value) => {
   });
 };
 
-const markNotificationsRead = () => API.post("/notifications/mark-as-read");
-const NOTIFICATIONS_VIEWED_KEY = "notifications_viewed";
+const markNotificationsRead = () =>
+  API.patch("/notifications/read-all");
 
-const hasViewedNotificationsThisSession = () =>
-  sessionStorage.getItem(NOTIFICATIONS_VIEWED_KEY) === "true";
 
-const setViewedNotificationsThisSession = () => {
-  sessionStorage.setItem(NOTIFICATIONS_VIEWED_KEY, "true");
-};
 
 const Navbar = ({ toggleSidebar, title = "AquaFlow Admin" }) => {
   const { user, logout } = useContext(AuthContext);
@@ -63,29 +58,38 @@ const Navbar = ({ toggleSidebar, title = "AquaFlow Admin" }) => {
     );
   };
 
-  const loadNotifications = useCallback(() => {
-    setNotificationsLoading(true);
-    setNotificationsError("");
-    API.get("/notifications")
-      .then((res) => {
-        const items = getNotificationItems(res.data);
-        const shouldKeepRead =
-          notificationOpenRef.current || hasViewedNotificationsThisSession();
-        setNotifications(
-          shouldKeepRead
-            ? items.map((notification) => ({ ...notification, read: true, isRead: true }))
-            : items
-        );
-        setNotificationCount(shouldKeepRead ? 0 : getUnreadCount(res.data, items));
-        setNotificationsLoaded(true);
-      })
-      .catch(() => {
-        setNotificationCount(0);
-        setNotifications([]);
-        setNotificationsError("Unable to load notifications.");
-      })
-      .finally(() => setNotificationsLoading(false));
-  }, []);
+ const loadNotifications = useCallback(() => {
+  setNotificationsLoading(true);
+  setNotificationsError("");
+
+  API.get("/notifications")
+    .then((res) => {
+      const items = getNotificationItems(res.data);
+
+      setNotifications(items);
+
+      setNotificationCount(
+        getUnreadCount(res.data, items)
+      );
+
+      setNotificationsLoaded(true);
+    })
+    .catch((err) => {
+      console.error(
+        "Notification load error:",
+        err?.response?.data || err?.message
+      );
+
+      setNotificationCount(0);
+      setNotifications([]);
+      setNotificationsError(
+        "Unable to load notifications."
+      );
+    })
+    .finally(() => {
+      setNotificationsLoading(false);
+    });
+}, []);
 
   useEffect(() => {
     loadNotifications();
@@ -116,22 +120,35 @@ const Navbar = ({ toggleSidebar, title = "AquaFlow Admin" }) => {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
+const toggleNotifications = () => {
+  setNotificationOpen((current) => {
+    const nextOpen = !current;
 
-  const toggleNotifications = () => {
-    setNotificationOpen((current) => {
-      const nextOpen = !current;
-      notificationOpenRef.current = nextOpen;
-      if (nextOpen) {
-        setViewedNotificationsThisSession();
-        markLocalNotificationsRead();
-        markNotificationsRead().catch(() => {
-          setNotificationsError("Notifications opened, but could not sync read status.");
-        });
-        if (!notificationsLoaded) loadNotifications();
-      }
-      return nextOpen;
+    notificationOpenRef.current = nextOpen;
+
+  if (nextOpen) {
+  markLocalNotificationsRead();
+
+  markNotificationsRead()
+    .then(() => {
+      // Reload after MongoDB is updated
+      loadNotifications();
+    })
+    .catch((err) => {
+      console.error(
+        "Mark notifications read error:",
+        err?.response?.data || err?.message
+      );
+
+      setNotificationsError(
+        "Notifications opened, but could not sync read status."
+      );
     });
-  };
+}
+
+    return nextOpen;
+  });
+};
 
   const displayUser = user?.user || user || {};
 
@@ -191,7 +208,7 @@ const Navbar = ({ toggleSidebar, title = "AquaFlow Admin" }) => {
 
               {!notificationsLoading && !notificationsError && notifications.length > 0 && (
                 <div style={styles.notificationList} role="list">
-                  {notifications.slice(0, 6).map((notification, index) => {
+                  {notifications.map((notification, index) => {
                     const unread = !notification.read && !notification.isRead;
                     const key = notification._id || notification.id || index;
                     const notificationTitle =
@@ -203,19 +220,47 @@ const Navbar = ({ toggleSidebar, title = "AquaFlow Admin" }) => {
                     );
 
                     return (
-                      <div key={key} style={styles.notificationItem} role="listitem">
-                        <span
-                          style={{
-                            ...styles.unreadDot,
-                            visibility: unread ? "visible" : "hidden",
-                          }}
-                        />
-                        <div style={styles.notificationContent}>
-                          <p style={styles.notificationItemTitle}>{notificationTitle}</p>
-                          {message && <p style={styles.notificationMessage}>{message}</p>}
-                          {time && <p style={styles.notificationTime}>{time}</p>}
-                        </div>
-                      </div>
+                      <div
+  key={key}
+  style={{
+    ...styles.notificationItem,
+    background: unread ? "#f5faff" : "#fff",
+  }}
+  role="listitem"
+>
+  <span
+    style={{
+      ...styles.unreadDot,
+      visibility: unread ? "visible" : "hidden",
+    }}
+  />
+
+  <div style={styles.notificationContent}>
+    <div style={styles.notificationItemTop}>
+      <p style={styles.notificationItemTitle}>
+        {notificationTitle}
+      </p>
+
+      {unread && (
+        <span style={styles.newBadge}>
+          NEW
+        </span>
+      )}
+    </div>
+
+    {message && (
+      <p style={styles.notificationMessage}>
+        {message}
+      </p>
+    )}
+
+    {time && (
+      <p style={styles.notificationTime}>
+        {time}
+      </p>
+    )}
+  </div>
+</div>
                     );
                   })}
                 </div>
@@ -244,6 +289,23 @@ const Navbar = ({ toggleSidebar, title = "AquaFlow Admin" }) => {
 };
 
 const styles = {
+
+  notificationItemTop: {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "8px",
+},
+
+newBadge: {
+  fontSize: "9px",
+  fontWeight: 800,
+  color: "#146c94",
+  background: "#e6f4f9",
+  borderRadius: "10px",
+  padding: "3px 7px",
+  flexShrink: 0,
+},
   nav: {
     height: "60px",
     background: "#fff",
@@ -317,7 +379,7 @@ const styles = {
     position: "absolute",
     top: "48px",
     right: 0,
-    width: "340px",
+    width: "420px",
     maxWidth: "calc(100vw - 32px)",
     background: "#fff",
     border: "1px solid #e5e8ec",
@@ -354,7 +416,7 @@ const styles = {
     fontSize: "12px",
   },
   notificationList: {
-    maxHeight: "320px",
+    maxHeight: "500px",
     overflowY: "auto",
   },
   notificationItem: {
