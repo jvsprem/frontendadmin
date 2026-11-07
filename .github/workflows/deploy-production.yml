@@ -1,0 +1,41 @@
+name: Deploy admin to production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build
+        run: npm ci && npm run build
+        env:
+          REACT_APP_API_URL: /api
+          CI: false
+          GENERATE_SOURCEMAP: false
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.PROD_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload build
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            build/ ubuntu@${{ secrets.PROD_HOST }}:/var/www/aqua/admin/
