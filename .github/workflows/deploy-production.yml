@@ -1,0 +1,70 @@
+name: Deploy admin to production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production-admin
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-2
+  ROLE_ARN: arn:aws:iam::899796414098:role/aqua-prod-github-deploy
+  BUCKET: aqua-prod-deploy-899796414098
+  INSTANCE_ID: i-0d1d777bc69ad4a5c
+  KIND: admin
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build
+        run: npm ci && npm run build
+        env:
+          REACT_APP_API_URL: /api
+          CI: false
+          GENERATE_SOURCEMAP: false
+
+      - name: Package build
+        run: tar -czf artifact.tgz -C build .
+
+      - name: Configure AWS (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload artifact to S3
+        run: aws s3 cp artifact.tgz "s3://$BUCKET/$KIND/$GITHUB_SHA.tgz"
+
+      - name: Deploy on server via Systems Manager
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "$KIND $GITHUB_SHA" \
+            --parameters "commands=[\"/usr/local/bin/aqua-deploy-$KIND s3://$BUCKET/$KIND/$GITHUB_SHA.tgz\"],executionTimeout=[\"900\"]" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $CMD_ID"
+          for i in $(seq 1 90); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in Success|Failed|Cancelled|TimedOut) break;; esac
+            sleep 10
+          done
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query "[StandardOutputContent,StandardErrorContent]" --output text || true
+          echo "Final status: $STATUS"
+          test "$STATUS" = "Success"
